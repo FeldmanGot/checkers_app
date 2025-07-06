@@ -1,11 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
-import '../controllers/course_controller.dart';
-
-
-// Импорт экрана для прохождения курса (убедись, что файл и класс существуют)
-import 'course_player_screen.dart'; 
+import '../course_player_screen.dart'; // Используем файл из корня lib/
 
 class CourseListScreen extends StatefulWidget {
   const CourseListScreen({super.key});
@@ -16,6 +12,7 @@ class CourseListScreen extends StatefulWidget {
 
 class _CourseListScreenState extends State<CourseListScreen> {
   List<Map<String, dynamic>> courses = [];
+  bool isLoading = true;
 
   @override
   void initState() {
@@ -24,11 +21,19 @@ class _CourseListScreenState extends State<CourseListScreen> {
   }
 
   Future<void> loadCourses() async {
-    final jsonStr = await rootBundle.loadString('assets/courses/kombinaciya_1.json');
-    final data = json.decode(jsonStr);
-    setState(() {
-      courses = [data];
-    });
+    try {
+      final jsonStr = await rootBundle.loadString('assets/courses/kombinaciya_1.json');
+      final data = json.decode(jsonStr);
+      setState(() {
+        courses = [data];
+        isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        isLoading = false;
+      });
+      print('Ошибка загрузки курсов: $e');
+    }
   }
 
   @override
@@ -44,44 +49,48 @@ class _CourseListScreenState extends State<CourseListScreen> {
         centerTitle: true,
         elevation: 0,
       ),
-      body: ListView.builder(
-        itemCount: courses.length,
-        itemBuilder: (context, index) {
-          final course = courses[index];
-          return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            child: Card(
-              color: const Color(0xFF3A3A3A),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              elevation: 2,
-              child: ListTile(
-                title: Text(
-                  course['title'] ?? 'Без названия',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-                subtitle: Text(
-                  course['description'] ?? '',
-                  style: const TextStyle(color: Colors.white70),
-                ),
-                trailing: const Icon(Icons.arrow_forward_ios, color: Colors.white70),
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => CoursePlayerScreen(course: course),
+      body: isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : ListView.builder(
+              itemCount: courses.length,
+              itemBuilder: (context, index) {
+                final course = courses[index];
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  child: Card(
+                    color: const Color(0xFF3A3A3A),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                  );
-                },
-              ),
+                    elevation: 2,
+                    child: ListTile(
+                      title: Text(
+                        course['title'] ?? 'Без названия',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                      subtitle: Text(
+                        course['description'] ?? '',
+                        style: const TextStyle(color: Colors.white70),
+                      ),
+                      trailing: const Icon(Icons.arrow_forward_ios, color: Colors.white70),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => CoursePlayerScreen(
+                              jsonAssetPath: 'assets/courses/kombinaciya_1.json',
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                );
+              },
             ),
-          );
-        },
-      ),
     );
   }
 }
