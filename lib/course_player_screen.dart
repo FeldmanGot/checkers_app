@@ -43,12 +43,24 @@ class _CoursePlayerScreenState extends State<CoursePlayerScreen> {
         movesHistory = [];
         errorMessage = '';
       });
+
+      // Выполняем начальные ходы противника, если курс начинается с них
+      _executeInitialOpponentMoves();
     } catch (e) {
       setState(() {
         errorMessage = 'Ошибка загрузки курса: $e';
         isLoading = false;
       });
       print('Ошибка загрузки курса: $e');
+    }
+  }
+
+  void _executeInitialOpponentMoves() {
+    final opponentMoves = controller.getAllPendingOpponentMoves();
+    if (opponentMoves.isNotEmpty) {
+      setState(() {
+        movesHistory.addAll(opponentMoves);
+      });
     }
   }
 
@@ -68,6 +80,9 @@ class _CoursePlayerScreenState extends State<CoursePlayerScreen> {
     }
 
     final userMove = Move(from, to);
+    print('User move: ${from.x},${from.y} -> ${to.x},${to.y}');
+    print('Current step: ${controller.currentStep}');
+    
     final isCorrect = controller.checkUserMove(userMove);
 
     if (isCorrect) {
@@ -76,30 +91,28 @@ class _CoursePlayerScreenState extends State<CoursePlayerScreen> {
         movesHistory.add(userMove);
       });
 
-      // Проверяем, есть ли ход противника
-      if (!controller.isFinished) {
-        final opponentMove = controller.makeOpponentMove();
-        if (opponentMove != null) {
-          Future.delayed(const Duration(milliseconds: 500), () {
-            if (mounted) {
-              setState(() {
-                movesHistory.add(opponentMove);
-              });
-            }
-          });
-        }
-      }
-
-      // Проверяем завершение курса
-      if (controller.isFinished) {
-        Future.delayed(const Duration(milliseconds: 1000), () {
-          if (mounted) {
+      // Выполняем все последующие ходы противника
+      Future.delayed(const Duration(milliseconds: 300), () {
+        if (mounted) {
+          final opponentMoves = controller.getAllPendingOpponentMoves();
+          if (opponentMoves.isNotEmpty) {
             setState(() {
-              errorMessage = '🎉 Поздравляем! Курс успешно завершен!';
+              movesHistory.addAll(opponentMoves);
             });
           }
-        });
-      }
+
+          // Проверяем завершение курса
+          if (controller.isFinished) {
+            Future.delayed(const Duration(milliseconds: 500), () {
+              if (mounted) {
+                setState(() {
+                  errorMessage = '🎉 Поздравляем! Курс успешно завершен!';
+                });
+              }
+            });
+          }
+        }
+      });
     } else {
       setState(() {
         errorMessage = '❌ Неправильный ход! Попробуйте ещё раз.';
@@ -113,6 +126,7 @@ class _CoursePlayerScreenState extends State<CoursePlayerScreen> {
       errorMessage = '';
       controller.currentStep = 0;
     });
+    _executeInitialOpponentMoves();
   }
 
   @override
@@ -183,7 +197,11 @@ class _CoursePlayerScreenState extends State<CoursePlayerScreen> {
                   style: const TextStyle(color: Colors.white),
                 ),
                 Text(
-                  controller.isUserTurn ? '👤 Ваш ход' : '🤖 Ход противника',
+                  controller.isFinished 
+                      ? '✅ Завершено' 
+                      : controller.isUserTurn 
+                          ? '👤 Ваш ход' 
+                          : '🤖 Ход противника',
                   style: const TextStyle(color: Colors.white70),
                 ),
               ],
