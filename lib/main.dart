@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-import 'screens/course_list_screen.dart'; // путь к экрану с курсами
-import 'course_player_screen.dart';
+import 'screens/improved_course_list_screen.dart';
 
 void main() {
   runApp(const CheckersTrainerApp());
@@ -12,10 +11,36 @@ class CheckersTrainerApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Шашечный тренажёр',
+      title: 'Шашечная академия',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData.dark(),
-      home: const CourseListScreen(), // меняем стартовый экран
+      theme: ThemeData.dark().copyWith(
+        colorScheme: ThemeData.dark().colorScheme.copyWith(
+              primary: Colors.blue,
+              secondary: Colors.orange,
+            ),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Color(0xFF1B1B1B),
+          foregroundColor: Colors.white,
+          elevation: 0,
+        ),
+        cardTheme: CardThemeData(
+          color: const Color(0xFF3A3A3A),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          elevation: 4,
+        ),
+        elevatedButtonTheme: ElevatedButtonThemeData(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.blue,
+            foregroundColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+        ),
+      ),
+      home: const ImprovedCourseListScreen(),
     );
   }
 }

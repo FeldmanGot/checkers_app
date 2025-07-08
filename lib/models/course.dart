@@ -2,14 +2,31 @@ class MoveStep {
   final String from;
   final String to;
   final bool capture;
+  final String side;
+  final String comment;
+  final bool auto;
+  final List<String> captured;
 
-  MoveStep({required this.from, required this.to, required this.capture});
+  MoveStep({
+    required this.from,
+    required this.to,
+    required this.capture,
+    required this.side,
+    required this.comment,
+    this.auto = false,
+    this.captured = const [],
+  });
 
   factory MoveStep.fromJson(Map<String, dynamic> json) {
     return MoveStep(
       from: json['from'],
       to: json['to'],
       capture: json['capture'],
+      side: json['side'],
+      comment: json['comment'],
+      auto: json['auto'] ?? false,
+      captured:
+          json['captured'] != null ? List<String>.from(json['captured']) : [],
     );
   }
 }
