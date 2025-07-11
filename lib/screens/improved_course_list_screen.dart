@@ -3,8 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import '../models/lesson.dart';
 import '../models/progress.dart';
+import '../models/course.dart';
+import '../services/course_service.dart';
 import 'lesson_screen.dart';
 import 'statistics_screen.dart';
+import 'course_editor_screen.dart';
+import '../game_screen.dart';
 
 class ImprovedCourseListScreen extends StatefulWidget {
   const ImprovedCourseListScreen({super.key});
@@ -15,9 +19,8 @@ class ImprovedCourseListScreen extends StatefulWidget {
 }
 
 class _ImprovedCourseListScreenState extends State<ImprovedCourseListScreen> {
-  List<ExtendedCourse> courses = [];
+  List<Course> courses = [];
   bool isLoading = true;
-  String selectedDifficulty = 'all';
   String selectedCategory = 'all';
   final ProgressManager progressManager = ProgressManager();
 
@@ -29,24 +32,8 @@ class _ImprovedCourseListScreenState extends State<ImprovedCourseListScreen> {
 
   Future<void> loadCourses() async {
     try {
-      final courseFiles = [
-        'assets/courses/kombinaciya_1.json',
-        'assets/courses/endgame_basics.json',
-      ];
-
-      List<ExtendedCourse> loadedCourses = [];
-
-      for (final file in courseFiles) {
-        try {
-          final jsonStr = await rootBundle.loadString(file);
-          final data = json.decode(jsonStr);
-          final course = ExtendedCourse.fromJson(data);
-          loadedCourses.add(course);
-        } catch (e) {
-          print('Ошибка загрузки курса $file: $e');
-        }
-      }
-
+      final loadedCourses = await CourseService.loadAllCourses();
+      
       setState(() {
         courses = loadedCourses;
         isLoading = false;
@@ -59,59 +46,39 @@ class _ImprovedCourseListScreenState extends State<ImprovedCourseListScreen> {
     }
   }
 
-  List<ExtendedCourse> get filteredCourses {
+  List<Course> get filteredCourses {
     return courses.where((course) {
-      final difficultyMatch = selectedDifficulty == 'all' ||
-          course.difficulty == selectedDifficulty;
-      final categoryMatch =
-          selectedCategory == 'all' || course.category == selectedCategory;
-      return difficultyMatch && categoryMatch;
+      final categoryMatch = selectedCategory == 'all' || 
+          course.title.toLowerCase().contains(selectedCategory.toLowerCase());
+      return categoryMatch;
     }).toList();
   }
 
-  Widget _buildDifficultyChip(String difficulty, String label, Color color) {
-    final isSelected = selectedDifficulty == difficulty;
-    return FilterChip(
-      label: Text(label),
-      selected: isSelected,
-      onSelected: (selected) {
-        setState(() {
-          selectedDifficulty = selected ? difficulty : 'all';
-        });
-      },
-      backgroundColor: Colors.grey[800],
-      selectedColor: color.withOpacity(0.3),
-      labelStyle: TextStyle(
-        color: isSelected ? color : Colors.white,
-        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+  Widget _buildSearchBar() {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: TextField(
+        decoration: InputDecoration(
+          hintText: 'Поиск курсов...',
+          prefixIcon: const Icon(Icons.search),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          fillColor: Colors.grey[800],
+          filled: true,
+        ),
+        onChanged: (value) {
+          setState(() {
+            selectedCategory = value.isEmpty ? 'all' : value;
+          });
+        },
       ),
     );
   }
 
-  Widget _buildCategoryChip(String category, String label) {
-    final isSelected = selectedCategory == category;
-    return FilterChip(
-      label: Text(label),
-      selected: isSelected,
-      onSelected: (selected) {
-        setState(() {
-          selectedCategory = selected ? category : 'all';
-        });
-      },
-      backgroundColor: Colors.grey[800],
-      selectedColor: Colors.blue.withOpacity(0.3),
-      labelStyle: TextStyle(
-        color: isSelected ? Colors.blue : Colors.white,
-        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-      ),
-    );
-  }
 
-  Widget _buildCourseCard(ExtendedCourse course) {
-    final progress = progressManager.getCourseProgress(course.id);
-    final progressPercent = progress?.overallProgress ?? 0.0;
-    final averageAccuracy = progress?.averageAccuracy ?? 0.0;
 
+  Widget _buildCourseCard(Course course) {
     return Card(
       color: const Color(0xFF3A3A3A),
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -123,7 +90,7 @@ class _ImprovedCourseListScreenState extends State<ImprovedCourseListScreen> {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => LessonScreen(course: course),
+              builder: (context) => GameScreen(course: course),
             ),
           );
         },
@@ -161,11 +128,15 @@ class _ImprovedCourseListScreenState extends State<ImprovedCourseListScreen> {
                     padding:
                         const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
-                      color: _getDifficultyColor(course.difficulty),
+                      color: course.id.startsWith('user_') 
+                          ? Colors.purple 
+                          : Colors.blue,
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
-                      _getDifficultyLabel(course.difficulty),
+                      course.id.startsWith('user_') 
+                          ? 'Пользовательский' 
+                          : 'Встроенный',
                       style: const TextStyle(
                         fontSize: 12,
                         color: Colors.white,
@@ -188,94 +159,55 @@ class _ImprovedCourseListScreenState extends State<ImprovedCourseListScreen> {
               const SizedBox(height: 12),
               Row(
                 children: [
-                  Icon(Icons.timer, size: 16, color: Colors.grey[400]),
+                  Icon(Icons.casino, size: 16, color: Colors.grey[400]),
                   const SizedBox(width: 4),
                   Text(
-                    '${course.estimatedTime} мин',
-                    style: TextStyle(fontSize: 12, color: Colors.grey[400]),
-                  ),
-                  const SizedBox(width: 16),
-                  Icon(Icons.book, size: 16, color: Colors.grey[400]),
-                  const SizedBox(width: 4),
-                  Text(
-                    '${course.lessons.length} уроков',
+                    '${course.steps.length} ходов',
                     style: TextStyle(fontSize: 12, color: Colors.grey[400]),
                   ),
                   const Spacer(),
-                  Row(
-                    children: [
-                      Icon(Icons.star, size: 16, color: Colors.orange[400]),
-                      const SizedBox(width: 4),
-                      Text(
-                        course.rating.toStringAsFixed(1),
-                        style: TextStyle(fontSize: 12, color: Colors.grey[400]),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              if (progressPercent > 0) ...[
-                const SizedBox(height: 12),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Прогресс: ${(progressPercent * 100).toInt()}%',
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: Colors.white70,
-                            fontWeight: FontWeight.w500,
+                  if (course.id.startsWith('user_'))
+                    PopupMenuButton<String>(
+                      onSelected: (value) async {
+                        if (value == 'delete') {
+                          final confirmed = await _showDeleteConfirmation(course);
+                          if (confirmed) {
+                            await CourseService.deleteUserCourse(course.id);
+                            loadCourses(); // Перезагружаем список
+                          }
+                        } else if (value == 'export') {
+                          final path = await CourseService.exportCourseToFile(course);
+                          if (path != null) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Курс экспортирован в: $path')),
+                            );
+                          }
+                        }
+                      },
+                      itemBuilder: (context) => [
+                        const PopupMenuItem(
+                          value: 'export',
+                          child: Row(
+                            children: [
+                              Icon(Icons.download),
+                              SizedBox(width: 8),
+                              Text('Экспортировать'),
+                            ],
                           ),
                         ),
-                        if (averageAccuracy > 0)
-                          Text(
-                            'Точность: ${(averageAccuracy * 100).toInt()}%',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: Colors.white70,
-                            ),
+                        const PopupMenuItem(
+                          value: 'delete',
+                          child: Row(
+                            children: [
+                              Icon(Icons.delete, color: Colors.red),
+                              SizedBox(width: 8),
+                              Text('Удалить', style: TextStyle(color: Colors.red)),
+                            ],
                           ),
+                        ),
                       ],
                     ),
-                    const SizedBox(height: 4),
-                    LinearProgressIndicator(
-                      value: progressPercent,
-                      backgroundColor: Colors.grey[700],
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        progressPercent < 0.3
-                            ? Colors.red[400]!
-                            : progressPercent < 0.7
-                                ? Colors.orange[400]!
-                                : Colors.green[400]!,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                children: course.tags
-                    .take(3)
-                    .map((tag) => Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: Colors.grey[700],
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            tag,
-                            style: const TextStyle(
-                              fontSize: 10,
-                              color: Colors.white70,
-                            ),
-                          ),
-                        ))
-                    .toList(),
+                ],
               ),
             ],
           ),
@@ -284,31 +216,28 @@ class _ImprovedCourseListScreenState extends State<ImprovedCourseListScreen> {
     );
   }
 
-  Color _getDifficultyColor(String difficulty) {
-    switch (difficulty) {
-      case 'beginner':
-        return Colors.green;
-      case 'intermediate':
-        return Colors.orange;
-      case 'advanced':
-        return Colors.red;
-      default:
-        return Colors.grey;
-    }
+  Future<bool> _showDeleteConfirmation(Course course) async {
+    return await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Удалить курс'),
+        content: Text('Вы уверены, что хотите удалить курс "${course.title}"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Отмена'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Удалить'),
+          ),
+        ],
+      ),
+    ) ?? false;
   }
 
-  String _getDifficultyLabel(String difficulty) {
-    switch (difficulty) {
-      case 'beginner':
-        return 'Новичок';
-      case 'intermediate':
-        return 'Средний';
-      case 'advanced':
-        return 'Продвинутый';
-      default:
-        return 'Общий';
-    }
-  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -326,6 +255,21 @@ class _ImprovedCourseListScreenState extends State<ImprovedCourseListScreen> {
         centerTitle: true,
         elevation: 0,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.add, color: Colors.white),
+            onPressed: () async {
+              final result = await Navigator.push<Course>(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const CourseEditorScreen(),
+                ),
+              );
+              if (result != null) {
+                loadCourses(); // Перезагружаем список после создания курса
+              }
+            },
+            tooltip: 'Создать курс',
+          ),
           IconButton(
             icon: const Icon(Icons.analytics, color: Colors.white),
             onPressed: () {
@@ -348,59 +292,14 @@ class _ImprovedCourseListScreenState extends State<ImprovedCourseListScreen> {
             )
           : Column(
               children: [
-                // Фильтры
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Уровень сложности:',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 8,
-                        children: [
-                          _buildDifficultyChip('all', 'Все', Colors.grey),
-                          _buildDifficultyChip(
-                              'beginner', 'Новичок', Colors.green),
-                          _buildDifficultyChip(
-                              'intermediate', 'Средний', Colors.orange),
-                          _buildDifficultyChip(
-                              'advanced', 'Продвинутый', Colors.red),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      const Text(
-                        'Категория:',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 8,
-                        children: [
-                          _buildCategoryChip('all', 'Все'),
-                          _buildCategoryChip('tactics', 'Тактика'),
-                          _buildCategoryChip('strategy', 'Стратегия'),
-                          _buildCategoryChip('endgame', 'Эндшпиль'),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
+                // Поиск
+                _buildSearchBar(),
                 // Список курсов
                 Expanded(
                   child: filteredCourses.isEmpty
                       ? const Center(
                           child: Text(
-                            'Нет курсов для выбранных фильтров',
+                            'Нет курсов',
                             style: TextStyle(color: Colors.white70),
                           ),
                         )

@@ -217,28 +217,30 @@ class _GameScreenState extends State<GameScreen> {
         from.y == expectedFrom.y &&
         to.x == expectedTo.x &&
         to.y == expectedTo.y) {
-      // Правильный ход
-      setState(() {
-        // Применяем ход к доске
-        final piece = board.pieceAt(from);
-        if (piece != null) {
-          final possibleMoves = DraughtsLogic.generateMoves(board, piece.color);
-          final move = possibleMoves.firstWhereOrNull(
-            (m) => m.from == from && m.to == to,
-          );
-          if (move != null) {
+      // Правильный ход - применяем его к доске
+      final piece = board.pieceAt(from);
+      if (piece != null) {
+        final possibleMoves = DraughtsLogic.generateMoves(board, piece.color);
+        final move = possibleMoves.firstWhereOrNull(
+          (m) => m.from == from && m.to == to,
+        );
+        if (move != null) {
+          setState(() {
             board = board.applyMove(move);
             appliedMoves.add(move);
-          }
-        }
+            currentStep++;
 
-        currentStep++;
-
-        if (currentStep >= widget.course.steps.length) {
-          isGameOver = true;
-          gameResult = 'Победа!';
+            if (currentStep >= widget.course.steps.length) {
+              isGameOver = true;
+              gameResult = 'Победа!';
+            }
+          });
+        } else {
+          _showMessage('Невозможный ход!');
         }
-      });
+      } else {
+        _showMessage('Нет шашки на начальной позиции!');
+      }
     } else {
       // Неправильный ход
       _showMessage('Неправильный ход! Попробуйте еще раз.');

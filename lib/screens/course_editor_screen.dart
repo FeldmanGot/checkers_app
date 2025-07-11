@@ -11,7 +11,9 @@ import '../logic/lidraughts_russian.dart'
 import 'package:collection/collection.dart';
 import '../logic/pdn_utils.dart';
 import '../models/pos.dart';
+import '../models/course.dart';
 import '../widgets/board.dart';
+import '../services/course_service.dart';
 
 class CourseEditorScreen extends StatefulWidget {
   const CourseEditorScreen({Key? key}) : super(key: key);
@@ -364,9 +366,101 @@ class _CourseEditorScreenState extends State<CourseEditorScreen> {
     );
   }
 
-  void _saveToCourses() {
-    final course = _toCourse();
-    Navigator.of(context).pop(course);
+  void _saveToCourses() async {
+    if (moves.isEmpty) {
+      _showMessage('Добавьте хотя бы один ход перед сохранением курса');
+      return;
+    }
+
+    final result = await _showSaveCourseDialog();
+    if (result != null) {
+      final course = _createCourse(result);
+      final success = await CourseService.saveUserCourse(course);
+      
+      if (success) {
+        _showMessage('Курс успешно сохранен!');
+        Navigator.of(context).pop(course);
+      } else {
+        _showMessage('Ошибка при сохранении курса');
+      }
+    }
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
+  Future<Map<String, String>?> _showSaveCourseDialog() async {
+    final titleController = TextEditingController();
+    final authorController = TextEditingController();
+    final descriptionController = TextEditingController();
+
+    return showDialog<Map<String, String>>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Сохранить курс'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: titleController,
+                decoration: const InputDecoration(
+                  labelText: 'Название курса',
+                  hintText: 'Введите название...',
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: authorController,
+                decoration: const InputDecoration(
+                  labelText: 'Автор',
+                  hintText: 'Введите имя автора...',
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: descriptionController,
+                decoration: const InputDecoration(
+                  labelText: 'Описание',
+                  hintText: 'Введите описание курса...',
+                ),
+                maxLines: 3,
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Отмена'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (titleController.text.trim().isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Введите название курса')),
+                );
+                return;
+              }
+              
+              Navigator.of(context).pop({
+                'title': titleController.text.trim(),
+                'author': authorController.text.trim().isEmpty 
+                    ? 'Аноним' 
+                    : authorController.text.trim(),
+                'description': descriptionController.text.trim().isEmpty 
+                    ? 'Пользовательский курс' 
+                    : descriptionController.text.trim(),
+              });
+            },
+            child: const Text('Сохранить'),
+          ),
+        ],
+      ),
+    );
   }
 
   Map<String, dynamic> _moveToStepMap(Move m, int index) {
@@ -384,18 +478,32 @@ class _CourseEditorScreenState extends State<CourseEditorScreen> {
     };
   }
 
-  dynamic _toCourse() {
-    return {
-      'title': 'Пользовательский курс',
-      'description': 'Создан в редакторе',
-      'author': 'User',
-      'steps': moves
-          .asMap()
-          .entries
-          .map((entry) => _moveToStepMap(entry.value, entry.key))
-          .toList(),
-      'userColor': userColor,
-      'created': DateTime.now().toIso8601String(),
-    };
+  Course _createCourse(Map<String, String> metadata) {
+    final steps = moves
+        .asMap()
+        .entries
+        .map((entry) => _createMoveStep(entry.value, entry.key))
+        .toList();
+
+    return Course(
+      id: CourseService.generateCourseId(),
+      title: metadata['title']!,
+      author: metadata['author']!,
+      description: metadata['description']!,
+      steps: steps,
+    );
+  }
+
+  MoveStep _createMoveStep(Move move, int index) {
+    final side = moveColors[index] == PieceColor.white ? 'w' : 'b';
+    return MoveStep(
+      from: posToPDN(move.from),
+      to: posToPDN(move.to),
+      capture: move.isCapture,
+      side: side,
+      comment: move.isCapture 
+        ? 'Взятие ${move.captured.length} шашек' 
+        : 'Обычный ход',
+    );
   }
 }

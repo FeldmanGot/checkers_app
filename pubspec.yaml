@@ -11,6 +11,9 @@ dependencies:
   flutter:
     sdk: flutter
   cupertino_icons: ^1.0.6
+  shared_preferences: ^2.2.2
+  path_provider: ^2.1.1
+  collection: ^1.18.0
 
 dev_dependencies:
   flutter_test:
@@ -19,4 +22,5 @@ dev_dependencies:
 
 flutter:
   assets:
-    - assets/courses/kombinaciya_1.json
+    - assets/courses/
+    - assets/fonts/

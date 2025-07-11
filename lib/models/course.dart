@@ -29,6 +29,18 @@ class MoveStep {
           json['captured'] != null ? List<String>.from(json['captured']) : [],
     );
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'from': from,
+      'to': to,
+      'capture': capture,
+      'side': side,
+      'comment': comment,
+      'auto': auto,
+      'captured': captured,
+    };
+  }
 }
 
 class Course {
@@ -56,5 +68,15 @@ class Course {
           .map((stepJson) => MoveStep.fromJson(stepJson))
           .toList(),
     );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'title': title,
+      'author': author,
+      'description': description,
+      'steps': steps.map((step) => step.toJson()).toList(),
+    };
   }
 }
