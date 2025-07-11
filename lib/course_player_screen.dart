@@ -348,13 +348,10 @@ class _CoursePlayerScreenState extends State<CoursePlayerScreen> {
           Text('Шаг ${currentStep + 1} из ${course?.steps.length ?? 0}'),
           SizedBox(height: 20),
           Expanded(
-            child: BoardWidget(
+            child:             BoardWidget(
               board: board,
               currentPlayer: PieceColor.white,
-              onSquareTap: () {
-                print('🔍 DEBUG: _onSquareTap передается в BoardWidget');
-                return _onSquareTap;
-              }(),
+              onSquareTap: _onSquareTap,
               selectedPos: selectedPos,
             ),
           ),

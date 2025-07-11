@@ -1,10 +1,14 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
+import 'package:path_provider/path_provider.dart';
 import '../models/lesson.dart';
 import '../models/progress.dart';
+import '../models/course.dart';
 import 'lesson_screen.dart';
 import 'statistics_screen.dart';
+import 'improved_course_editor.dart';
 
 class ImprovedCourseListScreen extends StatefulWidget {
   const ImprovedCourseListScreen({super.key});
@@ -29,22 +33,34 @@ class _ImprovedCourseListScreenState extends State<ImprovedCourseListScreen> {
 
   Future<void> loadCourses() async {
     try {
-      final courseFiles = [
-        'assets/courses/kombinaciya_1.json',
-        'assets/courses/endgame_basics.json',
-      ];
-
       List<ExtendedCourse> loadedCourses = [];
 
-      for (final file in courseFiles) {
+      // Загружаем встроенные курсы
+      final assetCourseFiles = [
+        'assets/courses/kombinaciya_1.json',
+        'assets/courses/endgame_basics.json',
+        'assets/courses/endgame_white_advantage.json',
+        'assets/courses/endgame_white_advantage_old.json',
+      ];
+
+      for (final file in assetCourseFiles) {
         try {
           final jsonStr = await rootBundle.loadString(file);
           final data = json.decode(jsonStr);
           final course = ExtendedCourse.fromJson(data);
+          course.isUserCreated = false; // Встроенный курс
           loadedCourses.add(course);
         } catch (e) {
-          print('Ошибка загрузки курса $file: $e');
+          print('Ошибка загрузки встроенного курса $file: $e');
         }
+      }
+
+      // Загружаем пользовательские курсы
+      try {
+        final userCourses = await _loadUserCourses();
+        loadedCourses.addAll(userCourses);
+      } catch (e) {
+        print('Ошибка загрузки пользовательских курсов: $e');
       }
 
       setState(() {
@@ -57,6 +73,79 @@ class _ImprovedCourseListScreenState extends State<ImprovedCourseListScreen> {
       });
       print('Ошибка загрузки курсов: $e');
     }
+  }
+
+  Future<List<ExtendedCourse>> _loadUserCourses() async {
+    try {
+      final directory = await getApplicationDocumentsDirectory();
+      final coursesDir = Directory('${directory.path}/courses');
+      
+      if (!await coursesDir.exists()) {
+        return [];
+      }
+
+      List<ExtendedCourse> userCourses = [];
+      final files = await coursesDir.list().toList();
+      
+      for (final file in files) {
+        if (file is File && file.path.endsWith('.json')) {
+          try {
+            final jsonStr = await file.readAsString();
+            final data = json.decode(jsonStr);
+            
+            // Преобразуем Course в ExtendedCourse
+            final course = _courseToExtendedCourse(data);
+            course.isUserCreated = true; // Пользовательский курс
+            userCourses.add(course);
+          } catch (e) {
+            print('Ошибка загрузки пользовательского курса ${file.path}: $e');
+          }
+        }
+      }
+      
+      return userCourses;
+    } catch (e) {
+      print('Ошибка доступа к пользовательским курсам: $e');
+      return [];
+    }
+  }
+
+  ExtendedCourse _courseToExtendedCourse(Map<String, dynamic> data) {
+    // Создаем ExtendedCourse из простого Course
+    return ExtendedCourse(
+      id: data['title']?.toString().toLowerCase().replaceAll(' ', '_') ?? 'user_course',
+      title: data['title'] ?? 'Пользовательский курс',
+      description: data['description'] ?? 'Описание отсутствует',
+      author: data['author'] ?? 'Неизвестный автор',
+      difficulty: 'intermediate', // По умолчанию средний уровень
+      category: 'tactics', // По умолчанию тактика
+      estimatedTime: (data['steps']?.length ?? 0) * 2, // 2 минуты на ход
+      rating: 4.0, // Базовый рейтинг для пользовательских курсов
+      tags: ['пользовательский', 'курс'],
+      lessons: _createLessonsFromSteps(data['steps'] ?? []),
+      isUserCreated: true,
+    );
+  }
+
+  List<Lesson> _createLessonsFromSteps(List<dynamic> steps) {
+    if (steps.isEmpty) return [];
+    
+    // Группируем шаги в уроки (например, по 5-10 шагов в урок)
+    List<Lesson> lessons = [];
+    const stepsPerLesson = 8;
+    
+    for (int i = 0; i < steps.length; i += stepsPerLesson) {
+      final lessonSteps = steps.skip(i).take(stepsPerLesson).toList();
+      lessons.add(Lesson(
+        id: 'lesson_${lessons.length + 1}',
+        title: 'Урок ${lessons.length + 1}',
+        description: 'Изучение ходов ${i + 1}-${i + lessonSteps.length}',
+        moves: lessonSteps.map((step) => step.toString()).toList(),
+        explanation: 'Пользовательский урок',
+      ));
+    }
+    
+    return lessons;
   }
 
   List<ExtendedCourse> get filteredCourses {
@@ -157,21 +246,43 @@ class _ImprovedCourseListScreenState extends State<ImprovedCourseListScreen> {
                       ],
                     ),
                   ),
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: _getDifficultyColor(course.difficulty),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      _getDifficultyLabel(course.difficulty),
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
+                  Row(
+                    children: [
+                      if (course.isUserCreated) ...[
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.purple,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Text(
+                            'Мой',
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                      ],
+                      Container(
+                        padding:
+                            const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: _getDifficultyColor(course.difficulty),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          _getDifficultyLabel(course.difficulty),
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ),
-                    ),
+                    ],
                   ),
                 ],
               ),
@@ -413,6 +524,31 @@ class _ImprovedCourseListScreenState extends State<ImprovedCourseListScreen> {
                 ),
               ],
             ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () async {
+          final result = await Navigator.push<Course>(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const ImprovedCourseEditor(),
+            ),
+          );
+          
+          if (result != null) {
+            // Обновляем список курсов после создания нового
+            loadCourses();
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Курс "${result.title}" создан!'),
+                backgroundColor: Colors.green,
+              ),
+            );
+          }
+        },
+        icon: const Icon(Icons.add),
+        label: const Text('Создать курс'),
+        backgroundColor: Colors.blue,
+        foregroundColor: Colors.white,
+      ),
     );
   }
 }

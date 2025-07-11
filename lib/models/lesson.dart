@@ -31,7 +31,7 @@ class Lesson {
   final String type; // interactive, puzzle, practice
   final String position;
   final String explanation;
-  final List<LessonMove> moves;
+  final List<String> moves; // Изменил тип на List<String> для совместимости
   final List<LessonMove> solution;
   final List<String> hints;
 
@@ -39,8 +39,8 @@ class Lesson {
     required this.id,
     required this.title,
     required this.description,
-    required this.type,
-    required this.position,
+    this.type = 'interactive',
+    this.position = '',
     required this.explanation,
     required this.moves,
     this.solution = const [],
@@ -55,9 +55,7 @@ class Lesson {
       type: json['type'] ?? 'interactive',
       position: json['position'] ?? '',
       explanation: json['explanation'] ?? '',
-      moves: (json['moves'] as List? ?? [])
-          .map((moveJson) => LessonMove.fromJson(moveJson))
-          .toList(),
+      moves: List<String>.from(json['moves'] ?? []),
       solution: (json['solution'] as List? ?? [])
           .map((moveJson) => LessonMove.fromJson(moveJson))
           .toList(),
@@ -77,6 +75,7 @@ class ExtendedCourse {
   final List<String> tags;
   final int estimatedTime;
   final double rating;
+  bool isUserCreated;
 
   ExtendedCourse({
     required this.id,
@@ -89,6 +88,7 @@ class ExtendedCourse {
     required this.tags,
     required this.estimatedTime,
     required this.rating,
+    this.isUserCreated = false,
   });
 
   factory ExtendedCourse.fromJson(Map<String, dynamic> json) {
